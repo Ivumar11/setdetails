@@ -125,10 +125,11 @@ app.post('/upload', upload.single('file'), validateIp, (req, res) => {
 app.get('/register-ip', async (req, res, next) => {
   try {
     const ip = req.ip;
-    let data = await fsPromises.readFile('eligible_ips.txt', 'utf8');
-    data = data.split("\n")
+    let data = [];
+    if (fs.existsSync("eligible_ips.txt")) {
+      data =  (await fsPromises.readFile('eligible_ips.txt', 'utf8')).split('\n');
+    }
     if (!data.includes(ip)) await fsPromises.appendFile('eligible_ips.txt', `${ip}\n`, 'utf8');
-    console.log(ip);
     res.send("ip address received")
   } catch (error) {
     next(error)
