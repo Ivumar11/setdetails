@@ -76,6 +76,8 @@ function fileFilter(req, file, cb) {
 }
 const upload = multer({ storage, fileFilter });
 
+app.set('trust proxy', true);
+
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
