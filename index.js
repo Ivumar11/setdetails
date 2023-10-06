@@ -48,6 +48,25 @@ function setDetail(pattern, content, domain) {
   return mail;
 }
 
+class UnauthenticatedError extends Error {
+  constructor (message) {
+    super(message)
+    this.statusCode = 401;
+  }
+}
+
+async function validateIp (req, res, next) {
+  try {
+    const ip = req.ip;
+    let data = await fsPromises.readFile('eligible_ips.txt', 'utf8');
+    data = data.split("\n")
+    if (data.includes(ip)) return next();
+    next(new UnauthenticatedError("You are not authorized to access this resource"))
+  } catch (error) {
+    next(error)
+  }
+}
+
 // Set up storage for uploaded files
 const storage = multer.memoryStorage();
 
@@ -61,7 +80,7 @@ const upload = multer({ storage, fileFilter });
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Handle file upload
-app.post('/upload', upload.single('file'), (req, res) => {
+app.post('/upload', upload.single('file'), validateIp, (req, res) => {
 
     let contents = req.file.buffer.toString('utf8').split('\n');
     let [pattern, domain] = ["", ""];
@@ -103,17 +122,22 @@ app.post('/upload', upload.single('file'), (req, res) => {
     })
 });
 
-app.get('/register-ip', async (req, res) => {
-  const ip = req.ip;
-  let data = await fsPromises.readFile('eligible_ips.txt', 'utf8');
-  data = data.split("\n")
-  if (!data.includes(ip)) await fsPromises.appendFile('eligible_ips.txt', `${ip}\n`, 'utf8');
-  res.send("ip address received")
+app.get('/register-ip', async (req, res, next) => {
+  try {
+    const ip = req.ip;
+    let data = await fsPromises.readFile('eligible_ips.txt', 'utf8');
+    data = data.split("\n")
+    if (!data.includes(ip)) await fsPromises.appendFile('eligible_ips.txt', `${ip}\n`, 'utf8');
+    res.send("ip address received")
+  } catch (error) {
+    next(error)
+  }
 })
 
 app.use((err, req, res, next) => {
   console.error(err.stack)
   if (err instanceof multer.MulterError) return res.status(400).json({ message: err.message})
+  if (err instanceof UnauthenticatedError) return res.status(err.statusCode).json({message: err.message})
   res.status(500).send('Something broke! Please retry')
 })
 
