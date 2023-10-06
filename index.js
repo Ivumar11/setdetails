@@ -3,6 +3,7 @@ const express = require('express');
 const multer = require('multer'); // Middleware for handling file uploads
 const path = require('path');
 const fs = require('fs');
+const fsPromises = require('fs/promises');
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT;
@@ -60,7 +61,7 @@ const upload = multer({ storage, fileFilter });
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Handle file upload
-app.post('/upload', upload.single('file'), async (req, res) => {
+app.post('/upload', upload.single('file'), (req, res) => {
 
     let contents = req.file.buffer.toString('utf8').split('\n');
     let [pattern, domain] = ["", ""];
@@ -89,9 +90,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     
     const fileName = `${req.ip}-processed.txt`
     fs.writeFileSync(fileName, contents.join('\n'))
-    //res.download(fileName)
 
-     // Set the response headers for file download
+    // Set the response headers for file download
     res.setHeader('Content-Disposition', 'attachment; filename=processed.txt');
     res.setHeader('Content-Type', 'text/plain');
 
@@ -102,6 +102,20 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       fs.unlinkSync(fileName);
     })
 });
+
+app.get('/register-ip', async (req, res) => {
+  const ip = req.ip;
+  let data = await fsPromises.readFile('eligible_ips.txt', 'utf8');
+  data = data.split("\n")
+  if (!data.includes(ip)) await fsPromises.appendFile('eligible_ips.txt', `${ip}\n`, 'utf8');
+  res.send("ip address received")
+})
+
+app.use((err, req, res, next) => {
+  console.error(err.stack)
+  if (err instanceof multer.MulterError) return res.status(400).json({ message: err.message})
+  res.status(500).send('Something broke! Please retry')
+})
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
