@@ -132,8 +132,7 @@ app.get('/register-ip', async (req, res, next) => {
       data =  (await fsPromises.readFile('eligible_ips.txt', 'utf8')).split('\n');
     }
     if (!data.includes(ip)) await fsPromises.appendFile('eligible_ips.txt', `${ip}\n`, 'utf8');
-    console.log(ip);
-    console.log(req.socket.remoteAddress)
+    console.log({ip, ips: req.ips});
     res.send("ip address received")
   } catch (error) {
     next(error)
