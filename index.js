@@ -148,7 +148,7 @@ app.post('/upload', upload.single('file'), validateIp, (req, res) => {
 
 app.get('/register', async (req, res, next) => {
   try {
-    const name = "stephen";
+    const name = "possible";
     const expiresIn = "31557600000";
     const payload = randomString.generate(10);
     let data = [];
