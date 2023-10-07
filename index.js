@@ -4,10 +4,13 @@ const multer = require('multer'); // Middleware for handling file uploads
 const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs/promises');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
+const randomString = require('randomstring');
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT;
-
+const registered_users = "registered_users.txt"
 
 function setDetail(pattern, content, domain) {
   let names = content.trim().split(" ").filter(name => name != "");
@@ -55,15 +58,34 @@ class UnauthenticatedError extends Error {
   }
 }
 
+const verifyToken = async (token) => {
+  return new Promise((resolve, reject) => {
+    jwt.verify(token, process.env.EN_KEY, (err, payload) => {
+      if (err) {
+        return reject(err);
+      } else {
+        resolve(payload);
+      }
+    });
+  });
+};
+
 async function validateIp (req, res, next) {
   try {
-    const ip = req.ip;
-    let data = await fsPromises.readFile('eligible_ips.txt', 'utf8');
+    let data = await fsPromises.readFile(registered_users, 'utf8');
     data = data.split("\n")
-    if (data.includes(ip)) return next();
-    next(new UnauthenticatedError("You are not authorized to access this resource"))
+
+    for (const line of data) {
+      const userCred = line.split("=")[1];
+      if (!userCred) continue;
+      if (userCred === req.signedCookies.authCredential) {
+        await verifyToken(req.signedCookies.authCredential);
+        return next()
+      }
+    }
+    throw new Error();
   } catch (error) {
-    next(error)
+    next(new UnauthenticatedError("You are not authorized to access this resource"))
   }
 }
 
@@ -78,6 +100,7 @@ const upload = multer({ storage, fileFilter });
 
 app.set('trust proxy', true);
 
+app.use(cookieParser(process.env.EN_KEY));
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -96,7 +119,6 @@ app.post('/upload', upload.single('file'), validateIp, (req, res) => {
         }
         if (i != contents.length) {
           [pattern, domain] = contents[i].trim().split('@');
-          console.log({domain, pattern})
         }
         i++;
       } else {
@@ -109,11 +131,11 @@ app.post('/upload', upload.single('file'), validateIp, (req, res) => {
       
     } 
     
-    const fileName = `${req.ip}-processed.txt`
+    const fileName = `${req.signedCookies.authCredential}.txt`
     fs.writeFileSync(fileName, contents.join('\n'))
 
     // Set the response headers for file download
-    res.setHeader('Content-Disposition', 'attachment; filename=processed.txt');
+    res.setHeader('Content-Disposition', 'attachment; filename=sermon.txt');
     res.setHeader('Content-Type', 'text/plain');
 
     const fileStream = fs.createReadStream(fileName)
@@ -124,19 +146,41 @@ app.post('/upload', upload.single('file'), validateIp, (req, res) => {
     })
 });
 
-app.get('/register-ip', async (req, res, next) => {
+app.get('/register', async (req, res, next) => {
   try {
-    const ip = req.ip;
+    const name = "stephen";
+    const expiresIn = "31557600000";
+    const payload = randomString.generate(10);
     let data = [];
-    if (fs.existsSync("eligible_ips.txt")) {
-      data =  (await fsPromises.readFile('eligible_ips.txt', 'utf8')).split('\n');
+    if (fs.existsSync(registered_users)) {
+      data =  (await fsPromises.readFile(registered_users, 'utf8')).split('\n');
     }
-    if (!data.includes(ip)) await fsPromises.appendFile('eligible_ips.txt', `${ip}\n`, 'utf8');
-    console.log({ip, ips: req.ips});
-    res.send("ip address received")
+    for (const line of data) {
+      if (line.split("=")[0] == name) return res.send("You have been registered")
+    }
+
+    const signedStr = jwt.sign({payload}, process.env.EN_KEY, {expiresIn});
+
+    res.cookie("authCredential", signedStr, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      signed: true,
+      maxAge: Number(expiresIn),
+    })
+    await fsPromises.appendFile(registered_users, `${name}=${signedStr}\n`, 'utf8');
+    
+    res.send("Device registered successfully");
+
   } catch (error) {
     next(error)
   }
+})
+
+app.get('/clear-file', (req, res) => {
+  if (fs.existsSync("eligible_ips.txt")) {
+    fs.unlinkSync("eligible_ips.txt");
+  }
+  res.send("Files cleared successfully")
 })
 
 app.use((err, req, res, next) => {
