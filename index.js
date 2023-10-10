@@ -148,7 +148,7 @@ app.post('/upload', upload.single('file'), validateIp, (req, res) => {
 
 app.get('/register', async (req, res, next) => {
   try {
-    const name = "possible";
+    const name = "stephen";
     const expiresIn = "31557600000";
     const payload = randomString.generate(10);
     let data = [];
@@ -176,11 +176,13 @@ app.get('/register', async (req, res, next) => {
   }
 })
 
-app.get('/clear-file', (req, res) => {
-  if (fs.existsSync("eligible_ips.txt")) {
-    fs.unlinkSync("eligible_ips.txt");
+app.post('/clear-file', (req, res) => {
+  const { file } = req.body;
+  if (fs.existsSync(file)) {
+    fs.unlinkSync(file);
+    return res.send("Files cleared successfully")
   }
-  res.send("Files cleared successfully")
+  res.send("No such file found")
 })
 
 app.use((err, req, res, next) => {
