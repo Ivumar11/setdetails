@@ -176,10 +176,9 @@ app.get('/register', async (req, res, next) => {
   }
 })
 
-app.post('/clear-file', (req, res) => {
-  const { file } = req.body;
-  if (fs.existsSync(file)) {
-    fs.unlinkSync(file);
+app.get('/clear-file', (req, res) => {
+  if (fs.existsSync(registered_users)) {
+    fs.unlinkSync(registered_users);
     return res.send("Files cleared successfully")
   }
   res.send("No such file found")
