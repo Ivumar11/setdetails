@@ -105,7 +105,7 @@ app.use(cookieParser(process.env.EN_KEY));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Handle file upload
-app.post('/upload', upload.single('file'), validateIp, (req, res) => {
+app.post('/upload', upload.single('file'), (req, res) => {
 
     let contents = req.file.buffer.toString('utf8').split('\n');
     let [pattern, domain] = ["", ""];
